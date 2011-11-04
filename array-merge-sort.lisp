@@ -8,50 +8,59 @@
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (labels ((less-equal-than (i1 i2)
-             (not (funcall test (funcall key (aref array i2)) (funcall key (aref array i1)))))
-           (less-than (i1 i2)
-             (funcall test (funcall key (aref array i1)) (funcall key (aref array i2))))
-           (recur (i1 i2)
-             (print (list array i1 i2))
-             (loop FOR i = i1 THEN (1+ i)
-                   WHILE (and (< i end1)
-                              (less-equal-than i i2))
-                   FINALLY
-                   (setf i1 i))
-             (when (>= i1 end1)
-               (return-from recur))
+             (not (funcall test (funcall key (aref array i2))
+                           (funcall key (aref array i1)))))
+           (less-than (i1 x)
+             (funcall test (funcall key (aref array i1)) 
+                      (funcall key x)))
 
-             (print (list :l2 array i1 i2))
-             (loop FOR i = i2 THEN (1+ i)
+           (merge1 (i1 e1 i2)
+             (loop FOR i FROM i1 BELOW e1
+                   WHILE (less-equal-than i i2)
+                   FINALLY (return i)))
+
+           (merge2 (i1 e1 i2 e2)
+             (loop WITH x = (aref array i1)
+                   FOR i FROM i2 BELOW e2
                    FOR c FROM 0
-                   WHILE (and (< i end2)
-                              (less-than i i1))
-                   FINALLY
-                   (print (list :l2-end i1 i2 i))
-                   (loop FOR k1 = i1 THEN (1+ k1)
-                         FOR k2 = i2 THEN (1+ k2)
-                         WHILE (< k2 i)
-                     DO
-                     (incf i1)
-                     (rotatef (aref array k1) (aref array k2)))
-                   (when (>= i end2)
-                     (return-from recur))
-                   (let ((bk end1))
-                     (setf end1 i)
-                     (recur i2 i) ;; TODO: この後にマージを再開する必要がある。 交換したl1の最後の部分から
-                   
-                     (setf end1 bk)
-                     (recur i1 start2))
-                   )))
-    (recur start1 start2)
+                   WHILE (and (< (+ c i1) e1)
+                              (less-than i x))
+               DO
+               (rotatef (aref array i) (aref array (+ i1 c)))
+               FINALLY
+               (return (values i c))))
+
+           (recur (i1 e1 i2 e2)
+  (print array)
+  (print (list :in i1 e1 i2 e2))
+  
+             (let ((i1-mid (merge1 i1 e1 i2)))
+               (when (>= i1-mid e1)
+                 (return-from recur i1-mid))
+             
+               (multiple-value-bind (i2-mid c) (merge2 i1-mid e1 i2 e2)
+                 (when (>= i2-mid e2)
+                   (return-from recur i1-mid))
+                 
+                 (let ((sorted-i (+ i1-mid c)))
+                   (print (list :3 i1 sorted-i e1 i2 i2-mid e2))
+
+                   (print (recur i2 i2-mid i2-mid e2))
+
+                   (recur sorted-i e1 i2 e2)
+                   #+C
+                   (let ((end (recur i2 i2-mid i2-mid e2)))
+                     (declare (ignore end))
+                     (recur i1-mid e1 i2-mid e2)))))))
+    (recur start1 end1 start2 end2)
     array))
                    
-(defparameter *b* (sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
-(defparameter *c* (sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
+;(defparameter *b* (cl:sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
+;(defparameter *c* (cl:sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
 
-(defparameter *e* (concatenate 'vector *b* *c*))
+;(defparameter *e* (concatenate 'vector *b* *c*))
 
-(merge-arrays *e* 0 (length *b*) (length *b*) (length *e*) #'< #'identity)
+;(merge-arrays *e* 0 (length *b*) (length *b*) (length *e*) #'< #'identity)
 
 #|
 (defun merge-lists (head list1 list2 test key &aux (tail head))
