@@ -4,32 +4,21 @@
   (:export sort))
 (in-package :array-merge-sort)
 
-(declaim (inline sort-impl)
-         (notinline merge-arrays))
-
-(defun insert-copy (array start mid end)
-  (loop FOR i FROM mid BELOW end
-        FOR k FROM start
-    DO
-    (loop FOR j FROM i DOWNTO (1+ k)
-      DO 
-      (rotatef (aref array j) (aref array (1- j)))))
-  array)
+(declaim (inline sort-impl block-swap)
+         (inline merge-arrays))
 
 (defun block-swap (array start1 end1 start2 end2)
-  (loop FOR i FROM start2 BELOW end2
-        FOR j FROM start1 BELOW end1
+  (loop FOR i fixnum FROM start2 BELOW end2
+        FOR j fixnum FROM start1 BELOW end1
         DO
         (rotatef (aref array i) (aref array j))
         FINALLY
         (return (values j i))))
 
-          
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
            (function test key)
            (simple-vector array))
-  #+C(print (list array start1 end1 start2 end2))
   (labels ((less-equal-than (i1 i2)
              (not (funcall test (funcall key (aref array i2))
                            (funcall key (aref array i1)))))
@@ -54,19 +43,30 @@
            (impl (i1 e1 i2 e2)
              (let ((i1-mid (merge1 i1 e1 i2)))
                (when (< i1-mid e1)
-                 (recur i1-mid e1 i2 e2))))
+                 (recur2 i1-mid e1 i2 e2))))
                
-           (recur (i1 e1 i2 e2)
-               (let ((i2-mid (merge2 i1 e1 i2 e2)))
-                 (declare (fixnum i2-mid e2))
-                 (multiple-value-bind (b1 b2)
-                                      (block-swap array i1 e1 i2 i2-mid)
-                   (when (< b2 e2)
-                     (impl i2 b2 b2 e2))
-                   
-                   (when (< b1 e1)
-                     (impl b1 e1 i2 e2))))))
-    (declare (inline less-than less-equal-than))
+           (recur2 (i1 e1 i2 e2)
+             (let ((i2-mid (merge2 i1 e1 i2 e2)))
+               (recur i1 e1 i2 i2-mid e2)))
+
+           (recur3 (i1 e1 i2 i2-2 e2)
+             (let ((i2-mid (merge2 i1 e1 i2-2 e2)))
+               (recur i1 e1 i2 i2-mid e2)))
+
+           (recur (i1 e1 i2 i2-mid e2 &aux (p 0))
+             (multiple-value-bind (b1 b2)
+                                  (block-swap array i1 e1 i2 i2-mid)
+               (declare (fixnum b1 b2 e1 e2 p))
+               (setf p (1- b2))
+               (when (< b2 e2)
+                 (let ((v (aref array (1- b2))))
+                   (impl i2 b2 b2 e2)
+                   (setf p (position v array :start (1- b2) :test #'eq))))
+
+               (when (< b1 e1)
+                 (recur3 (1+ b1) e1 i2 p e2)))))
+
+    (declare (inline less-than less-equal-than merge1 merge2))
     (impl start1 end1 start2 end2)
     array))
     
