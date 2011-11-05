@@ -4,7 +4,8 @@
   (:export sort))
 (in-package :array-merge-sort)
 
-(declaim (inline merge-arrays sort-impl))
+(declaim (inline sort-impl)
+         (notinline merge-arrays))
 
 (defun insert-copy (array start mid end)
   (loop FOR i FROM mid BELOW end
@@ -22,11 +23,13 @@
         (rotatef (aref array i) (aref array j))
         FINALLY
         (return (values j i))))
+
           
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
            (function test key)
            (simple-vector array))
+  #+C(print (list array start1 end1 start2 end2))
   (labels ((less-equal-than (i1 i2)
              (not (funcall test (funcall key (aref array i2))
                            (funcall key (aref array i1)))))
@@ -39,28 +42,32 @@
                    WHILE (less-equal-than i i2)
                    FINALLY (return i)))
 
-           (merge2 (i1 i2 e2)
+           (merge2 (i1 e1 i2 e2)
              (declare (fixnum i2))
              (loop WITH x = (aref array i1)
                    FOR i fixnum FROM (1+ i2) BELOW e2
+                   FOR k FROM (1+ i1) BELOW e1
                    WHILE (less-than i x)
                FINALLY
                (return i)))
-
-           (recur (i1 e1 i2 e2)
+           
+           (impl (i1 e1 i2 e2)
              (let ((i1-mid (merge1 i1 e1 i2)))
-               (when (= i1-mid e1)
-                 (return-from recur))
-             
-               (let ((i2-mid (merge2 i1-mid i2 e2)))
+               (when (< i1-mid e1)
+                 (recur i1-mid e1 i2 e2))))
+               
+           (recur (i1 e1 i2 e2)
+               (let ((i2-mid (merge2 i1 e1 i2 e2)))
                  (declare (fixnum i2-mid e2))
                  (multiple-value-bind (b1 b2)
-                                      (block-swap array i1-mid e1 i2 i2-mid)
-                   (unless (= b2 e2)
-                     (recur i2 b2 b2 e2))
-                   (recur b1 e1 i2 e2))))))
+                                      (block-swap array i1 e1 i2 i2-mid)
+                   (when (< b2 e2)
+                     (impl i2 b2 b2 e2))
+                   
+                   (when (< b1 e1)
+                     (impl b1 e1 i2 e2))))))
     (declare (inline less-than less-equal-than))
-    (recur start1 end1 start2 end2)
+    (impl start1 end1 start2 end2)
     array))
     
 (declaim (ftype (function (vector function function) (values)) sort-impl))
