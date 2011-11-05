@@ -8,7 +8,6 @@
          (inline merge-arrays))
 
 (defun block-swap (array start1 end1 start2 end2)
-;  (print (list :swap start1 end1 start2 end2))
   (loop FOR i fixnum FROM start2 BELOW end2
         FOR j fixnum FROM start1 BELOW end1
         DO
@@ -16,7 +15,6 @@
         FINALLY
         (when (= i end2)
           (incf j))
-;        (print (list :return j i))
         (return (values j i))))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
@@ -47,30 +45,27 @@
            (impl (i1 e1 i2 e2)
              (let ((i1-mid (merge1 i1 e1 i2)))
                (when (< i1-mid e1)
-                 (recur2 i1-mid e1 i2 e2))))
+                 (recur3 i1-mid e1 i2 i2 e2))))
                
-           (recur2 (i1 e1 i2 e2)
-             (let ((i2-mid (merge2 i1 e1 i2 e2)))
-               (recur i1 e1 i2 i2-mid e2)))
-
            (recur3 (i1 e1 i2 i2-2 e2)
              (let ((i2-mid (merge2 i1 e1 i2-2 e2)))
                (recur i1 e1 i2 i2-mid e2)))
 
            (recur (i1 e1 i2 i2-mid e2 &aux (p 0))
-;             (print (list i1 e1 i2 i2-mid e2))
              (multiple-value-bind (b1 b2)
                                   (block-swap array i1 e1 i2 i2-mid)
                (declare (fixnum b1 b2 e1 e2 p))
-;               (print (list b1 b2))
                (setf p (1- b2))
                (when (< b2 e2)
-                 (let ((v (aref array (1- b2))))
-                   (impl i2 b2 b2 e2)
-                   (setf p (position v array :start (1- b2) :test #'eq))))
+                 (if (< b2 i2-mid)
+                     (recur3 i2 b2 b2 (1- i2-mid) e2)
+                   (let ((v (aref array (1- b2))))
+                     (impl i2 b2 b2 e2)
+                     (setf p (position v array :start (1- b2) :test #'eq)))))
 
                (when (< b1 e1)
-                 (recur3 b1 e1 i2 p e2)))))
+                 ;;(print (list (- e1 b1) (- (1+ p) i2)))
+                 (recur b1 e1 i2 (1+ p) e2)))))
 
     (declare (inline less-than less-equal-than merge1 merge2))
     (impl start1 end1 start2 end2)
