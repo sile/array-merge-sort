@@ -4,9 +4,12 @@
   (:export sort))
 (in-package :array-merge-sort)
 
-(declaim (inline merge-lists sort-impl))
+(declaim (inline merge-arrays sort-impl))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
+  (declare (fixnum start1 end1 start2 end2)
+           (function test key)
+           (simple-vector array))
   (labels ((less-equal-than (i1 i2)
              (not (funcall test (funcall key (aref array i2))
                            (funcall key (aref array i1)))))
@@ -39,6 +42,7 @@
                  (unless (>= i2-mid e2)
                    (recur i2 i2-mid i2-mid e2))
                  (recur sorted-i e1 i2 e2)))))
+    (declare (inline less-than less-equal-than))
     (recur start1 end1 start2 end2)
     array))
     
