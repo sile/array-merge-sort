@@ -14,6 +14,14 @@
       DO 
       (rotatef (aref array j) (aref array (1- j)))))
   array)
+
+(defun block-swap (array start1 end1 start2 end2)
+  (loop FOR i FROM start2 BELOW end2
+        FOR j FROM start1 BELOW end1
+        DO
+        (rotatef (aref array i) (aref array j))
+        FINALLY
+        (return (values j i))))
           
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
@@ -40,19 +48,17 @@
                (return i)))
 
            (recur (i1 e1 i2 e2)
-  
              (let ((i1-mid (merge1 i1 e1 i2)))
                (when (= i1-mid e1)
-                 (return-from recur i1-mid))
+                 (return-from recur))
              
                (let ((i2-mid (merge2 i1-mid i2 e2)))
                  (declare (fixnum i2-mid e2))
-                 (if (= i2-mid e2)
-                     (progn (insert-copy array i1-mid i2 e2) e2)
-                   (let ((c (- i2-mid i2)))
-                     (insert-copy array i1-mid i2 i2-mid) ; XXX: if分岐は不要？
-                     (recur (+ i1-mid c 1) (+ e1 c)
-                            (+ e1 c) e2)))))))
+                 (multiple-value-bind (b1 b2)
+                                      (block-swap array i1-mid e1 i2 i2-mid)
+                   (unless (= b2 e2)
+                     (recur i2 b2 b2 e2))
+                   (recur b1 e1 i2 e2))))))
     (declare (inline less-than less-equal-than))
     (recur start1 end1 start2 end2)
     array))
