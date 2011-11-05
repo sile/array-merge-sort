@@ -4,8 +4,9 @@
   (:export sort))
 (in-package :array-merge-sort)
 
-(declaim (inline sort-impl block-swap)
-         (inline merge-arrays))
+(declaim (inline sort-impl block-swap ins2)
+         (inline merge-arrays)
+         (notinline ins))
 
 (defun insert-copy (array start mid end)
   (loop FOR i FROM mid BELOW end
@@ -27,25 +28,27 @@
         (return (values j i))))
 
 (defun ins (array start mid end)
-  (declare (fixnum start mid end))
+  (declare (fixnum start mid end)
+           (simple-vector array)
+           (optimize (speed 3) (safety 0) (debug 0)))
   (when (or (= start mid)
             (= mid end))
     (return-from ins array))
 ;;  (print (list array start mid end))
 ;;  (sleep 0.5)
-  (loop FOR i FROM start BELOW mid
-        FOR j FROM mid BELOW end
+  (loop FOR i fixnum FROM start BELOW mid
+        FOR j fixnum FROM mid BELOW end
         DO
         (rotatef (aref array i) (aref array j))
         FINALLY
         (cond ((= j end) 
                (return (ins array i mid end)))
               (t
-               (return (ins array mid (1+ j) end))))))
+               (return (ins array mid (the fixnum (1+ j)) end))))))
 
 (defun ins2 (array start1 end1 start2 end2)
   (declare (fixnum start1 end1 start2 end2))
-  (if (< end1 start2)
+  (if (<= end1 start2)
       (block-swap array start1 end1 start2 end2)
     (ins array start1 start2 end2)))
 
@@ -71,45 +74,44 @@
                    FINALLY (return i)))
 
            (merge2 (i1 e1 i2 e2)
-             (declare (fixnum i2))
+             (declare (fixnum i2)
+                      (ignorable e1))
              (loop WITH x = (aref array i1)
                    FOR i fixnum FROM (1+ i2) BELOW e2
                    FOR k FROM (1+ i1) BELOW e1
                    WHILE (less-than i x)
-               FINALLY
+                FINALLY
                (return i)))
            
            (impl (i1 e1 i2 e2)
              (let ((i1-mid (merge1 i1 e1 i2)))
-               (when (< i1-mid e1)
-                 (recur3 i1-mid e1 i2 i2 e2))))
+               (if (< i1-mid e1)
+                 (recur3 i1-mid e1 i2 i2 e2)
+                 e1)))
                
            (recur3 (i1 e1 i2 i2-2 e2)
              (let ((i2-mid (merge2 i1 e1 i2-2 e2)))
                (recur i1 e1 i2 i2-mid e2)))
 
-           (recur (i1 e1 i2 i2-mid e2 &aux (p 0))
-             (multiple-value-bind (b1 b2)
-                                  (block-swap array i1 e1 i2 i2-mid)
-               (declare (fixnum b1 b2 e1 e2 p))
-               (if (< b2 i2-mid)
-                   (recur3 i2 b2 b2 (1- i2-mid) e2)
-                 (progn
-                   (setf p (1- b2))
-                   (when (< b2 e2)
-                     (let ((v (aref array (1- b2))))
-                       (if (< (- e1 b1) (- b2 i2))
-                           (progn 
-                             (ins array b1 e1 b2)
+           (recur (i1 e1 i2 i2-mid e2 &aux (p 0) (i1-mid (+ i1 (- i2-mid i2))))
+             (declare (fixnum i1 e1 i2 i1-mid i2-mid e2 p))
+             (ins2 array i1 i1-mid i2 i2-mid)
 
-                             (impl b1 b2 b2 e2)
-                             (setf b1 e1))
-                         (progn
-                           (impl i2 b2 b2 e2)
-                           (setf p (position v array :start (1- b2) :test #'eq))))))
+             (if (<= i1-mid i2)
+                 (progn 
+                   (setf p (1- i2-mid))
+                   (when (< i2-mid e2)
+                     (let ((v (aref array (1- i2-mid)))
+                           (v2 (impl i2 i2-mid i2-mid e2)))
+                       (declare (ignorable v v2))
+                       (setf p (position v array :start (- v2 1) :test #'eq))
+                       ;(print (list p (1- v2) (<= (- v2 2)  p)))
+                       ))
+                   (recur i1-mid e1 i2 (1+ p) e2))
 
-                   (when (< b1 e1)
-                     (recur b1 e1 i2 (1+ p) e2)))))))
+               (if (< i2-mid e2)
+                   (impl i1-mid i2-mid i2-mid e2)
+                 e1))))
 
     (declare (inline less-than less-equal-than merge1 merge2))
     (impl start1 end1 start2 end2)
