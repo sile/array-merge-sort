@@ -8,24 +8,11 @@
          (inline merge-arrays)
          (notinline ins))
 
-(defun insert-copy (array start mid end)
-  (loop FOR i FROM mid BELOW end
-        FOR k FROM start
-    DO
-    (loop FOR j FROM i DOWNTO (1+ k)
-      DO 
-      (rotatef (aref array j) (aref array (1- j)))))
-  array)
-
 (defun block-swap (array start1 end1 start2 end2)
   (loop FOR i fixnum FROM start2 BELOW end2
         FOR j fixnum FROM start1 BELOW end1
         DO
-        (rotatef (aref array i) (aref array j))
-        FINALLY
-        (when (= i end2)
-          (incf j))
-        (return (values j i))))
+        (rotatef (aref array i) (aref array j))))
 
 (defun ins (array start mid end)
   (declare (fixnum start mid end)
@@ -34,8 +21,7 @@
   (when (or (= start mid)
             (= mid end))
     (return-from ins array))
-;;  (print (list array start mid end))
-;;  (sleep 0.5)
+
   (loop FOR i fixnum FROM start BELOW mid
         FOR j fixnum FROM mid BELOW end
         DO
@@ -51,11 +37,6 @@
   (if (<= end1 start2)
       (block-swap array start1 end1 start2 end2)
     (ins array start1 start2 end2)))
-
-(defun sorted? (array start end)
-  (loop FOR a ACROSS (subseq array start (1- end))
-        FOR b ACROSS (subseq array (1+ start) end)
-        ALWAYS (<= a b)))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
@@ -105,7 +86,7 @@
                            (v2 (impl i2 i2-mid i2-mid e2)))
                        (declare (ignorable v v2))
                        (setf p (position v array :start (- v2 1) :test #'eq))
-                       ;(print (list p (1- v2) (<= (- v2 2)  p)))
+                       ;; (setf p (- v2 1))
                        ))
                    (recur i1-mid e1 i2 (1+ p) e2))
 
@@ -113,7 +94,7 @@
                    (impl i1-mid i2-mid i2-mid e2)
                  e1))))
 
-    (declare (inline less-than less-equal-than merge1 merge2))
+    (declare (inline less-than less-equal-than impl merge1 merge2))
     (impl start1 end1 start2 end2)
     array))
     
@@ -137,11 +118,45 @@
 (defun sort (array test &key (key #'identity))
   (sort-impl array test key)
   array)
-           
-;(defparameter *b* (cl:sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
-;(defparameter *c* (cl:sort (loop REPEAT (random 50) COLLECT (random 400)) #'<))
 
-;(defparameter *e* (concatenate 'vector *b* *c*))
+#|
+(defparameter *a* (coerce (loop REPEAT 300000 COLLECT (random 10000000)) 'vector))
 
-;(merge-arrays *e* 0 (length *b*) (length *b*) (length *e*) #'< #'identity)
+(defparameter *a* (coerce (loop FOR i FROM 0 BELOW 300000 COLLECT i) 'vector))
 
+(defparameter *c* 0)
+(let ((l1 (copy-seq *a*))
+      (l2 (copy-seq *a*)))
+  (setf *c* 0)
+  (values
+   (equalp
+    (time 
+     (sb-impl::stable-sort-simple-vector 
+      l1 (lambda (x y) #+C (incf *c*) (< x y)) #'identity))
+    
+    (time
+     (array-merge-sort:sort 
+      l2 (lambda (x y) #+C (incf *c*) (< x y)))))
+   *c*))
+
+(array-merge-sort::merge-arrays
+ #(5 6 7 1 2 3) 0 3 3 6 #'< #'identity)
+
+(defparameter *b* (sort (coerce (loop REPEAT 3000 COLLECT (random 10000000)) 'vector) #'<))
+(defparameter *d* (sort (coerce (loop REPEAT 3000 COLLECT (random 10000000)) 'vector) #'<))
+
+(let ()
+  (setf *c* 0)
+  (values
+   (equalp
+    (time 
+     (merge 'vector (copy-seq *b*) (copy-seq *d*)
+            (lambda (x y) #+C (incf *c*) (< x y))))
+    
+    (time
+     (array-merge-sort::merge-arrays 
+      (concatenate 'vector *b* *d*)
+      0 (length *b*) (length *b*) (+ (length *b*) (length *d*))
+      (lambda (x y) #-C (incf *c*) (< x y)) #'identity)))
+   *c*))
+|#
