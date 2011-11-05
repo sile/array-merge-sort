@@ -38,11 +38,16 @@
         DO
         (rotatef (aref array i) (aref array j))
         FINALLY
-        (cond ((= mid end) (return array))
-              ((= j end) 
+        (cond ((= j end) 
                (return (ins array i mid end)))
               (t
                (return (ins array mid (1+ j) end))))))
+
+(defun ins2 (array start1 end1 start2 end2)
+  (declare (fixnum start1 end1 start2 end2))
+  (if (< end1 start2)
+      (block-swap array start1 end1 start2 end2)
+    (ins array start1 start2 end2)))
 
 (defun sorted? (array start end)
   (loop FOR a ACROSS (subseq array start (1- end))
