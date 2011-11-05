@@ -6,6 +6,15 @@
 
 (declaim (inline merge-arrays sort-impl))
 
+(defun insert-copy (array start mid end)
+  (loop FOR i FROM mid BELOW end
+        FOR k FROM start
+    DO
+    (loop FOR j FROM i DOWNTO (1+ k)
+      DO 
+      (rotatef (aref array j) (aref array (1- j)))))
+  array)
+          
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
            (function test key)
@@ -22,26 +31,28 @@
                    WHILE (less-equal-than i i2)
                    FINALLY (return i)))
 
-           (merge2 (i1 e1 i2 e2)
+           (merge2 (i1 i2 e2)
+             (declare (fixnum i2))
              (loop WITH x = (aref array i1)
-                   FOR i fixnum FROM i2 BELOW e2
-                   FOR k fixnum FROM i1 BELOW e1
+                   FOR i fixnum FROM (1+ i2) BELOW e2
                    WHILE (less-than i x)
-               DO
-               (rotatef (aref array i) (aref array k))
                FINALLY
-               (return (values i k))))
+               (return i)))
 
            (recur (i1 e1 i2 e2)
   
              (let ((i1-mid (merge1 i1 e1 i2)))
-               (when (>= i1-mid e1)
-                 (return-from recur))
+               (when (= i1-mid e1)
+                 (return-from recur i1-mid))
              
-               (multiple-value-bind (i2-mid sorted-i) (merge2 i1-mid e1 i2 e2)
-                 (unless (>= i2-mid e2)
-                   (recur i2 i2-mid i2-mid e2))
-                 (recur sorted-i e1 i2 e2)))))
+               (let ((i2-mid (merge2 i1-mid i2 e2)))
+                 (declare (fixnum i2-mid e2))
+                 (if (= i2-mid e2)
+                     (progn (insert-copy array i1-mid i2 e2) e2)
+                   (let ((c (- i2-mid i2)))
+                     (insert-copy array i1-mid i2 i2-mid) ; XXX: if分岐は不要？
+                     (recur (+ i1-mid c 1) (+ e1 c)
+                            (+ e1 c) e2)))))))
     (declare (inline less-than less-equal-than))
     (recur start1 end1 start2 end2)
     array))
