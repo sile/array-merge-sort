@@ -7,6 +7,15 @@
 (declaim (inline sort-impl block-swap)
          (inline merge-arrays))
 
+(defun insert-copy (array start mid end)
+  (loop FOR i FROM mid BELOW end
+        FOR k FROM start
+    DO
+    (loop FOR j FROM i DOWNTO (1+ k)
+      DO 
+      (rotatef (aref array j) (aref array (1- j)))))
+  array)
+
 (defun block-swap (array start1 end1 start2 end2)
   (loop FOR i fixnum FROM start2 BELOW end2
         FOR j fixnum FROM start1 BELOW end1
@@ -16,6 +25,21 @@
         (when (= i end2)
           (incf j))
         (return (values j i))))
+
+(defun ins (array start mid end)
+  (declare (fixnum start mid end))
+;;  (print (list array start mid end))
+;;  (sleep 0.5)
+  (loop FOR i FROM start BELOW mid
+        FOR j FROM mid BELOW end
+        DO
+        (rotatef (aref array i) (aref array j))
+        FINALLY
+        (cond ((= mid end) (return array))
+              ((= j end) 
+               (return (ins array i mid end)))
+              (t
+               (return (ins array mid (1+ j) end))))))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
@@ -55,17 +79,25 @@
              (multiple-value-bind (b1 b2)
                                   (block-swap array i1 e1 i2 i2-mid)
                (declare (fixnum b1 b2 e1 e2 p))
-               (setf p (1- b2))
-               (when (< b2 e2)
-                 (if (< b2 i2-mid)
-                     (recur3 i2 b2 b2 (1- i2-mid) e2)
-                   (let ((v (aref array (1- b2))))
-                     (impl i2 b2 b2 e2)
-                     (setf p (position v array :start (1- b2) :test #'eq)))))
+               (if (< b2 i2-mid)
+                   (recur3 i2 b2 b2 (1- i2-mid) e2)
+                 (progn
+                   (setf p (1- b2))
+                   (when (< b2 e2)
+                     (let ((v (aref array (1- b2))))
+                       (if (< (- e1 b1) (- b2 i2))
+                           (progn ;;(impl b1 e1 e1 b2)
+                             (insert-copy array b1 e1 b2)
+                             ;;(recur b1 e1 i2 e2 e2)
+                             ;;(ins array b1 e1 b2)
+                             (impl b1 b2 b2 e2)
+                             (setf b1 e1))
+                         (progn
+                           (impl i2 b2 b2 e2)
+                           (setf p (position v array :start (1- b2) :test #'eq))))))
 
-               (when (< b1 e1)
-                 ;;(print (list (- e1 b1) (- (1+ p) i2)))
-                 (recur b1 e1 i2 (1+ p) e2)))))
+                   (when (< b1 e1)
+                     (recur b1 e1 i2 (1+ p) e2)))))))
 
     (declare (inline less-than less-equal-than merge1 merge2))
     (impl start1 end1 start2 end2)
