@@ -28,6 +28,9 @@
 
 (defun ins (array start mid end)
   (declare (fixnum start mid end))
+  (when (or (= start mid)
+            (= mid end))
+    (return-from ins array))
 ;;  (print (list array start mid end))
 ;;  (sleep 0.5)
   (loop FOR i FROM start BELOW mid
@@ -40,6 +43,11 @@
                (return (ins array i mid end)))
               (t
                (return (ins array mid (1+ j) end))))))
+
+(defun sorted? (array start end)
+  (loop FOR a ACROSS (subseq array start (1- end))
+        FOR b ACROSS (subseq array (1+ start) end)
+        ALWAYS (<= a b)))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
   (declare (fixnum start1 end1 start2 end2)
@@ -86,10 +94,9 @@
                    (when (< b2 e2)
                      (let ((v (aref array (1- b2))))
                        (if (< (- e1 b1) (- b2 i2))
-                           (progn ;;(impl b1 e1 e1 b2)
-                             (insert-copy array b1 e1 b2)
-                             ;;(recur b1 e1 i2 e2 e2)
-                             ;;(ins array b1 e1 b2)
+                           (progn 
+                             (ins array b1 e1 b2)
+
                              (impl b1 b2 b2 e2)
                              (setf b1 e1))
                          (progn
