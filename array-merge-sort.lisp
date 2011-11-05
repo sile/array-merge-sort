@@ -8,11 +8,15 @@
          (inline merge-arrays))
 
 (defun block-swap (array start1 end1 start2 end2)
+;  (print (list :swap start1 end1 start2 end2))
   (loop FOR i fixnum FROM start2 BELOW end2
         FOR j fixnum FROM start1 BELOW end1
         DO
         (rotatef (aref array i) (aref array j))
         FINALLY
+        (when (= i end2)
+          (incf j))
+;        (print (list :return j i))
         (return (values j i))))
 
 (defun merge-arrays (array start1 end1 start2 end2 test key)
@@ -54,9 +58,11 @@
                (recur i1 e1 i2 i2-mid e2)))
 
            (recur (i1 e1 i2 i2-mid e2 &aux (p 0))
+;             (print (list i1 e1 i2 i2-mid e2))
              (multiple-value-bind (b1 b2)
                                   (block-swap array i1 e1 i2 i2-mid)
                (declare (fixnum b1 b2 e1 e2 p))
+;               (print (list b1 b2))
                (setf p (1- b2))
                (when (< b2 e2)
                  (let ((v (aref array (1- b2))))
@@ -64,7 +70,7 @@
                    (setf p (position v array :start (1- b2) :test #'eq))))
 
                (when (< b1 e1)
-                 (recur3 (1+ b1) e1 i2 p e2)))))
+                 (recur3 b1 e1 i2 p e2)))))
 
     (declare (inline less-than less-equal-than merge1 merge2))
     (impl start1 end1 start2 end2)
